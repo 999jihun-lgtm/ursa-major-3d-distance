@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>북두칠성 거리와 연주시차 시뮬레이션</title>
+<style>
+:root{--bg:#0b1020;--panel:#121a33;--panel2:#18224a;--ink:#e8ecf7;--muted:#9aa7c7;--line:#2a3558;--jan:#4cc9f0;--jul:#ff6b9d;--sun:#ff5a4d;--gold:#ffd166}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif;font-size:16px}
+header{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);background:#0e1530}
+h1{font-size:20px;margin:0 8px 0 0}
+.seg{display:flex;gap:4px;flex-wrap:wrap}
+button,select{font:inherit;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
+button:hover{border-color:var(--gold)}
+button.on{background:var(--gold);color:#1a1a1a;border-color:var(--gold);font-weight:700}
+.sp{flex:1}
+.banner{margin:10px 16px 0;padding:10px 16px;background:var(--panel2);border-left:5px solid var(--gold);border-radius:8px;font-size:19px;font-weight:700}
+main{display:grid;gap:12px;padding:12px 16px;grid-template-columns:2fr 1fr}
+main.top{grid-template-columns:1fr}main.sky{grid-template-columns:1fr}
+main.top #pSky,main.sky #pTop{display:none}
+main.top .panel,main.sky .panel{max-width:1000px;margin:0 auto;width:100%}
+main.sky .panel{max-width:520px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+.panel h2{font-size:15px;margin:2px 4px 4px;color:var(--muted);font-weight:600}
+svg{width:100%;height:auto;display:block}
+svg text{font-family:inherit}
+.ctrl{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;padding:0 16px 20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.card h3{margin:0 0 8px;font-size:15px;color:var(--gold)}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0}
+input[type=range]{flex:1;min-width:140px;accent-color:var(--gold)}
+label.ck{display:inline-flex;gap:5px;align-items:center;margin-right:10px;font-size:14px;cursor:pointer}
+.small{font-size:13px;color:var(--muted);line-height:1.5}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:4px 6px;text-align:right;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:600}
+tr.hl{background:#243158}
+.st.hl circle.dot{stroke:var(--gold);stroke-width:3.5}
+.st.hl text{fill:var(--gold);font-weight:700}
+.hide{display:none!important}
+.mono{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<header>
+  <h1>북두칠성 별까지의 거리와 연주시차</h1>
+  <div class="seg" id="steps">
+    <button data-s="1">① 밤하늘에서 보면</button>
+    <button data-s="2">② 우주 위에서 보면</button>
+    <button data-s="3">③ 관측 위치가 바뀌면?</button>
+  </div>
+  <div class="sp"></div>
+  <div class="seg" id="views">
+    <button data-v="both">함께 보기</button>
+    <button data-v="top">우주 위에서</button>
+    <button data-v="sky">밤하늘에서</button>
+  </div>
+</header>
+<div class="banner" id="q"></div>
+<main id="stage" class="both">
+  <section class="panel" id="pTop"><h2>우주 위에서 내려다본 모습 — 태양(지구)과 별들의 실제 거리</h2><svg id="svgTop" viewBox="0 0 800 460"></svg></section>
+  <section class="panel" id="pSky"><h2>지구에서 올려다본 밤하늘</h2><svg id="svgSky" viewBox="0 0 400 460"></svg></section>
+</main>
+
+<section class="ctrl">
+  <div class="card" id="cObs">
+    <h3>지구(관측자) 위치</h3>
+    <div class="seg">
+      <button id="mFree">자유 이동</button>
+      <button id="mCmp">1월·7월 비교</button>
+    </div>
+    <div id="freeBox">
+      <div class="row"><input type="range" id="phi" min="0" max="360" step="1" value="0"><b class="mono" id="phiTxt"></b></div>
+      <div class="row"><button id="play">▶ 재생</button><label class="small">속도 <select id="spd"><option value="30">느리게</option><option value="60" selected>보통</option><option value="120">빠르게</option></select></label><button id="rst">1월로 되돌리기</button></div>
+    </div>
+    <div id="cmpBox" class="hide">
+      <div class="row seg" id="cmpBtns"><button data-c="jan">1월 (6개월 전)</button><button data-c="jul">7월 (6개월 후)</button><button data-c="both">겹쳐 보기</button></div>
+      <div class="small">1월과 7월은 지구가 공전 궤도의 정반대 지점에 있을 때입니다.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>시차 확대 배율 (공전 궤도를 키워서 보기)</h3>
+    <div class="row"><input type="range" id="kk" min="0" max="1000" step="1"><b class="mono" id="kTxt"></b></div>
+    <div class="row seg" id="kPre"><button data-k="1">실제 ×1</button><button data-k="10000">×1만</button><button data-k="100000">×10만</button><button data-k="300000">×30만</button></div>
+    <div class="small" id="kNote"></div>
+  </div>
+
+  <div class="card">
+    <h3>표시 옵션</h3>
+    <div class="row">
+      <label class="ck"><input type="checkbox" id="oDist"> 거리 숫자</label>
+      <label class="ck"><input type="checkbox" id="oRing"> 거리 동심원</label>
+      <label class="ck"><input type="checkbox" id="oLine"> 시선</label>
+      <label class="ck"><input type="checkbox" id="oProj"> 천구 투영점</label>
+      <label class="ck"><input type="checkbox" id="oTrail"> 이동 궤적</label>
+      <label class="ck"><input type="checkbox" id="oShape"> 별자리선</label>
+    </div>
+    <div class="row"><span class="small">별을 천구에 붙이기</span><input type="range" id="flat" min="0" max="100" value="0"><b class="mono" id="flatTxt">0%</b></div>
+    <div class="row seg"><button id="fl0">실제 위치</button><button id="fl1">천구에 붙이기</button></div>
+    <div class="small">100%로 가면 모든 별이 같은 거리(천구)에 있는 것처럼 보입니다.</div>
+  </div>
+
+  <div class="card" style="grid-column:1/-1">
+    <h3>별 정보</h3>
+    <table id="tbl"></table>
+    <div class="small" style="margin-top:6px">거리(pc) = 1 ÷ 연주시차(″) &nbsp;·&nbsp; 1pc ≈ 3.26광년 &nbsp;·&nbsp; 연주시차 p는 6개월 간 이동각(2p)의 절반입니다. 거리 값은 교과서·도감마다 조금씩 다를 수 있습니다.</div>
+  </div>
+</section>
+
+<script>
+(function(){
+'use strict';
+var rad=Math.PI/180, AU_LY=1.58125e-5, KMAX=300000;
+/* ---- 별 데이터: 거리(광년)는 수업용 이미지 값. 바꾸려면 d만 고치면 됩니다 ---- */
+var STARS=[
+ {ko:'두베',  ra:[11,3,43.7], dec:[61,45,3], d:124},
+ {ko:'메라크',ra:[11,1,50.5], dec:[56,22,57],d:79},
+ {ko:'페크다',ra:[11,53,49.8],dec:[53,41,41],d:84},
+ {ko:'메그레즈',ra:[12,15,25.6],dec:[57,1,57],d:81},
+ {ko:'알리오스',ra:[12,54,1.7],dec:[55,57,35],d:81},
+ {ko:'미자르',ra:[13,23,55.5],dec:[54,55,31],d:78},
+ {ko:'알카이드',ra:[13,47,32.4],dec:[49,18,48],d:101}
+];
+var LINES=[[0,1],[1,2],[2,3],[3,0],[3,4],[4,5],[5,6]];
+/* ---- 천구 좌표 → 하늘(x:오른쪽, y:위쪽) 각도, 긴 축이 세로가 되도록 회전 ---- */
+function dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]}
+function cross(a,b){return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]}
+function nrm(a){var l=Math.hypot(a[0],a[1],a[2]);return [a[0]/l,a[1]/l,a[2]/l]}
+(function(){
+ STARS.forEach(function(s){var a=(s.ra[0]+s.ra[1]/60+s.ra[2]/3600)*15*rad,t=(s.dec[0]+s.dec[1]/60+s.dec[2]/3600)*rad;
+  s.u=[Math.cos(t)*Math.cos(a),Math.cos(t)*Math.sin(a),Math.sin(t)];});
+ var c=nrm(STARS.reduce(function(p,s){return [p[0]+s.u[0],p[1]+s.u[1],p[2]+s.u[2]]},[0,0,0]));
+ var e=nrm(cross([0,0,1],c)),n=cross(c,e);
+ STARS.forEach(function(s){var k=dot(s.u,c);s.a=-dot(s.u,e)/k;s.b=dot(s.u,n)/k;});
+ var N=STARS.length,ma=0,mb=0;STARS.forEach(function(s){ma+=s.a/N;mb+=s.b/N});
+ var sxx=0,syy=0,sxy=0;
+ STARS.forEach(function(s){s.a-=ma;s.b-=mb;sxx+=s.a*s.a;syy+=s.b*s.b;sxy+=s.a*s.b});
+ var r=Math.PI/2-0.5*Math.atan2(2*sxy,sxx-syy);
+ STARS.forEach(function(s){s.x=s.a*Math.cos(r)-s.b*Math.sin(r);s.y=s.a*Math.sin(r)+s.b*Math.cos(r)});
+ if(STARS[0].y<STARS[6].y)STARS.forEach(function(s){s.x=-s.x;s.y=-s.y});
+ STARS.forEach(function(s,i){s.i=i;s.P=[s.d*Math.cos(s.y)*Math.cos(s.x),s.d*Math.sin(s.x),s.d*Math.sin(s.y)];
+  s.pArc=3.26156/s.d; /* 실제 연주시차(″) */});
+})();
+
+var st={step:3,view:'both',mode:'free',cmp:'both',phi:0,play:false,speed:60,K:150000,
+ showDist:true,showRing:true,showLine:true,showProj:true,showTrail:true,showShape:true,flat:0,hl:null};
+var $=function(id){return document.getElementById(id)};
+var R=150; /* 천구 반지름(광년, 모식) */
+
+/* ---- 관측자 / 계산 ---- */
+function B(){return st.K*AU_LY}
+function obsList(){
+ if(st.mode==='free')return [{k:'cur',phi:st.phi*rad}];
+ if(st.cmp==='jan')return [{k:'jan',phi:0}];
+ if(st.cmp==='jul')return [{k:'jul',phi:Math.PI}];
+ return [{k:'jan',phi:0},{k:'jul',phi:Math.PI}];
+}
+function obsPos(phi){return [B()*Math.sin(phi),B()*Math.cos(phi)]} /* [깊이, 위아래] */
+function sky(s,O){var dx=s.P[0]-O[0],dz=s.P[2]-O[1];return {x:Math.atan2(s.P[1],dx)/rad,y:Math.atan2(dz,dx)/rad}}
+function arcPt(s,O){ /* 관측자에서 별을 지나는 시선이 천구(반지름 R, 태양 중심)와 만나는 점 */
+ var dx=s.P[0]-O[0],dz=s.P[2]-O[1],l=Math.hypot(dx,dz);dx/=l;dz/=l;
+ var od=O[0]*dx+O[1]*dz,t=-od+Math.sqrt(od*od-(O[0]*O[0]+O[1]*O[1]-R*R));
+ return [O[0]+t*dx,O[1]+t*dz];
+}
+function sunArc(s){var l=Math.hypot(s.P[0],s.P[2]);return [R*s.P[0]/l,R*s.P[2]/l]}
+var OBS_STYLE={cur:'#ffffff',jan:'#4cc9f0',jul:'#ff6b9d'};
+var OBS_NAME={cur:'현재',jan:'1월',jul:'7월'};
+function fmtAng(v){var a=Math.abs(v);if(a<1e-9)return '0';return a<0.01?(a*3600).toFixed(3)+'″':a.toFixed(2)+'°'}
+function arrow(v){return Math.abs(v)<1e-7?'':(v>0?' ↑':' ↓')}
+
+/* ---- 우주 위에서 보기 ---- */
+var SX=735,SY=232,S=4.2;
+function tx(x){return SX-x*S}
+function tz(z){return SY-z*S}
+function renderTop(){
+ var o=[],obs=obsList(),b=B();
+ o.push('<rect x="0" y="0" width="800" height="460" rx="10" fill="#070b18"/>');
+ /* 동심원 */
+ if(st.showRing){
+  for(var r=25;r<=150;r+=25){
+   var a=18*rad;
+   o.push('<path d="M'+tx(r*Math.cos(a))+' '+tz(r*Math.sin(a))+' A'+r*S+' '+r*S+' 0 0 1 '+tx(r*Math.cos(a))+' '+tz(-r*Math.sin(a))+'" fill="none" stroke="#2e3a66" stroke-dasharray="3 5"/>');
+   o.push('<text x="'+(tx(r*Math.cos(a))-2)+'" y="'+(tz(-r*Math.sin(a))+16)+'" fill="#6f7fb0" font-size="13" text-anchor="middle">'+r+'광년</text>');
+  }
+ }
+ /* 천구 */
+ if(st.showProj){
+  var pts=[];for(var d=-18;d<=18;d+=3)pts.push(tx(R*Math.cos(d*rad))+','+tz(R*Math.sin(d*rad)));
+  o.push('<polyline points="'+pts.join(' ')+'" fill="none" stroke="#7fd1ff" stroke-width="3" opacity=".75"/>');
+  o.push('<text x="'+(tx(R*Math.cos(18*rad))-6)+'" y="'+(tz(R*Math.sin(18*rad))-8)+'" fill="#7fd1ff" font-size="14" font-weight="700">천구 (하늘의 겉면)</text>');
+ }
+ /* 궤도 고리 */
+ if(b*S>1.5)o.push('<circle cx="'+SX+'" cy="'+SY+'" r="'+(b*S)+'" fill="none" stroke="#5a6aa0" stroke-dasharray="2 3"/>');
+ /* 시선 + 투영점 */
+ obs.forEach(function(ob){
+  var O=obsPos(ob.phi),col=OBS_STYLE[ob.k],ox=tx(O[0]),oz=tz(O[1]);
+  STARS.forEach(function(s){
+   var pos=dispPos(s),hx=tx(pos[0]),hz=tz(pos[1]);
+   if(st.showLine)o.push('<line x1="'+ox+'" y1="'+oz+'" x2="'+hx+'" y2="'+hz+'" stroke="'+col+'" stroke-opacity=".5" stroke-width="1.2"/>');
+   if(st.showProj){
+    var q=arcPt(s,O);
+    o.push('<line x1="'+tx(s.P[0])+'" y1="'+tz(s.P[2])+'" x2="'+tx(q[0])+'" y2="'+tz(q[1])+'" stroke="'+col+'" stroke-opacity=".45" stroke-dasharray="2 4"/>');
+    o.push('<g class="st" data-i="'+s.i+'"><circle class="dot" cx="'+tx(q[0])+'" cy="'+tz(q[1])+'" r="4.5" fill="#0b1020" stroke="'+col+'" stroke-width="2"/></g>');
+   }
+  });
+ });
+ /* 별 */
+ STARS.forEach(function(s){
+  var p=dispPos(s),x=tx(p[0]),y=tz(p[1]);
+  var lab=s.ko+(st.showDist?' '+s.d+'광년':'');
+  o.push('<g class="st'+(st.hl===s.i?' hl':'')+'" data-i="'+s.i+'" style="cursor:pointer"><circle class="dot" cx="'+x+'" cy="'+y+'" r="7" fill="#fff6d6" stroke="#0b1020" stroke-width="1.5"/>'+
+   '<text x="'+(s.i===0?x-8:x+12)+'" y="'+(s.i===0?y-12:y+5)+'" fill="#e8ecf7" font-size="15" stroke="#070b18" stroke-width="4" paint-order="stroke">'+lab+'</text></g>');
+ });
+ /* 태양/지구 */
+ o.push('<circle cx="'+SX+'" cy="'+SY+'" r="22" fill="#ff5a4d" opacity=".18"/><circle cx="'+SX+'" cy="'+SY+'" r="11" fill="#ff5a4d"/>');
+ o.push('<text x="'+SX+'" y="'+(SY+34)+'" fill="#ffb4ac" font-size="15" text-anchor="middle" font-weight="700">태양 · 지구</text>');
+ obs.forEach(function(ob){
+  var O=obsPos(ob.phi);
+  o.push('<circle cx="'+tx(O[0])+'" cy="'+tz(O[1])+'" r="5" fill="#4da3ff" stroke="'+OBS_STYLE[ob.k]+'" stroke-width="2"/>');
+ });
+ /* 확대 모식도 */
+ var cx=680,cy=62,rr=30;
+ o.push('<rect x="600" y="8" width="190" height="128" rx="8" fill="#0b1020" stroke="#2a3558"/>');
+ o.push('<circle cx="'+cx+'" cy="'+cy+'" r="'+rr+'" fill="none" stroke="#5a6aa0"/><circle cx="'+cx+'" cy="'+cy+'" r="5" fill="#ff5a4d"/>');
+ [[0,'1월'],[90,'4월'],[180,'7월'],[270,'10월']].forEach(function(m){
+  var px=cx-(rr+14)*Math.sin(m[0]*rad),pz=cy-(rr+14)*Math.cos(m[0]*rad);
+  o.push('<text x="'+px+'" y="'+(pz+4)+'" fill="#8d9bc7" font-size="11" text-anchor="middle">'+m[1]+'</text>');
+ });
+ obs.forEach(function(ob){
+  o.push('<circle cx="'+(cx-rr*Math.sin(ob.phi))+'" cy="'+(cy-rr*Math.cos(ob.phi))+'" r="5.5" fill="#4da3ff" stroke="'+OBS_STYLE[ob.k]+'" stroke-width="2"/>');
+ });
+ o.push('<text x="695" y="128" fill="#9aa7c7" font-size="11" text-anchor="middle">지구 공전 궤도(확대 모식도)</text>');
+ $('svgTop').innerHTML=o.join('');
+}
+function dispPos(s){ /* 천구에 붙이기 슬라이더 반영 */
+ var q=sunArc(s),f=st.flat;
+ return [s.P[0]+(q[0]-s.P[0])*f,s.P[2]+(q[1]-s.P[2])*f];
+}
+
+/* ---- 밤하늘 ---- */
+var CX=205,CY=232,SC=13;
+var BG=(function(){var a=[],x=7;function rn(){x=(x*16807)%2147483647;return x/2147483647}
+ for(var i=0;i<70;i++)a.push([rn()*400,rn()*460,rn()*1.1+.3,rn()*.5+.2]);return a})();
+function sx(v){return CX+v*SC}
+function sy(v){return CY-v*SC}
+function renderSky(){
+ var o=[],obs=obsList(),jan=obsPos(0);
+ o.push('<rect x="0" y="0" width="400" height="460" rx="10" fill="#070b18"/>');
+ BG.forEach(function(p){o.push('<circle cx="'+p[0]+'" cy="'+p[1]+'" r="'+p[2]+'" fill="#fff" opacity="'+p[3]+'"/>')});
+ /* 각도 눈금 */
+ for(var d=-15;d<=15;d+=5){
+  o.push('<line x1="22" y1="'+sy(d)+'" x2="34" y2="'+sy(d)+'" stroke="#4a5788"/><text x="18" y="'+(sy(d)+4)+'" fill="#6f7fb0" font-size="11" text-anchor="end">'+(d>0?'+':'')+d+'°</text>');
+ }
+ o.push('<line x1="34" y1="'+sy(-17)+'" x2="34" y2="'+sy(17)+'" stroke="#4a5788"/>');
+ /* 기준(1월) 위치 */
+ var base=STARS.map(function(s){return sky(s,jan)});
+ var cur=obs.map(function(ob){var O=obsPos(ob.phi);return {ob:ob,p:STARS.map(function(s){return sky(s,O)})}});
+ /* 궤적: 한 바퀴 */
+ if(st.showTrail&&st.mode==='free'){
+  STARS.forEach(function(s){
+   var a=sky(s,obsPos(0)),b=sky(s,obsPos(Math.PI)),pts=[];
+   for(var k=0;k<=36;k++){var p=sky(s,obsPos(k*10*rad));pts.push(sx(p.x)+','+sy(p.y))}
+   o.push('<polyline points="'+pts.join(' ')+'" fill="none" stroke="#7a89bd" stroke-opacity=".6" stroke-width="2"/>');
+  });
+ }
+ /* 별자리선 */
+ function shape(P,col,op){
+  if(!st.showShape)return;
+  LINES.forEach(function(l){o.push('<line x1="'+sx(P[l[0]].x)+'" y1="'+sy(P[l[0]].y)+'" x2="'+sx(P[l[1]].x)+'" y2="'+sy(P[l[1]].y)+'" stroke="'+col+'" stroke-opacity="'+op+'" stroke-width="1.8"/>')});
+ }
+ if(st.mode==='free'){
+  /* 1월 기준 유령 */
+  shape(base,'#4cc9f0',.35);
+  STARS.forEach(function(s,i){o.push('<circle cx="'+sx(base[i].x)+'" cy="'+sy(base[i].y)+'" r="7" fill="none" stroke="#4cc9f0" stroke-dasharray="3 3" opacity=".8"/>')});
+ }
+ cur.forEach(function(c){
+  var col=OBS_STYLE[c.ob.k];shape(c.p,col,.7);
+ });
+ /* compare: 이동 선 */
+ if(st.mode==='cmp'&&st.cmp==='both'){
+  STARS.forEach(function(s,i){var a=cur[0].p[i],b=cur[1].p[i];
+   o.push('<line x1="'+sx(a.x)+'" y1="'+sy(a.y)+'" x2="'+sx(b.x)+'" y2="'+sy(b.y)+'" stroke="#fff" stroke-width="2.5" stroke-opacity=".85"/>')});
+ }
+ cur.forEach(function(c,ci){
+  var col=OBS_STYLE[c.ob.k];
+  STARS.forEach(function(s,i){
+   var p=c.p[i],x=sx(p.x),y=sy(p.y);
+   var filled=(st.mode==='free'||st.cmp!=='both'||ci===0)?'#fff6d6':'#fff6d6';
+   o.push('<g class="st'+(st.hl===s.i?' hl':'')+'" data-i="'+s.i+'" style="cursor:pointer"><circle class="dot" cx="'+x+'" cy="'+y+'" r="6" fill="'+filled+'" stroke="'+(st.mode==='free'?'#0b1020':col)+'" stroke-width="'+(st.mode==='free'?1.5:3)+'"/>'+
+    (ci===0?'<text x="'+(s.i===0?x-14:x+14)+'" y="'+(s.i===0?y-10:y+5)+'"'+(s.i===0?' text-anchor="end"':'')+' fill="#e8ecf7" font-size="14" stroke="#070b18" stroke-width="4" paint-order="stroke">'+s.ko+(st.showDist?' · '+s.d+'광년':'')+'</text>':'')+'</g>');
+  });
+ });
+ /* 범례 */
+ var lg=[];
+ if(st.mode==='free'){lg.push(['#fff','● 현재 위치'],['#4cc9f0','◌ 1월 기준 위치'])}
+ else{ if(st.cmp!=='jul')lg.push(['#4cc9f0','● 1월']); if(st.cmp!=='jan')lg.push(['#ff6b9d','● 7월']);}
+ lg.forEach(function(l,k){o.push('<text x="'+(48+k*110)+'" y="20" fill="'+l[0]+'" font-size="13" font-weight="700">'+l[1]+'</text>')});
+ o.push('<text x="200" y="456" fill="#7f8dba" font-size="10" text-anchor="middle">※ 별의 이동은 크게 과장해서 그린 것입니다 (현재 ×'+fmtK(st.K)+')</text>');
+ $('svgSky').innerHTML=o.join('');
+}
+
+/* ---- 표 ---- */
+function renderTable(){
+ var A,Bp;
+ if(st.mode==='free'){A=sky;Bp=null}
+ var jan=obsPos(0),second=st.mode==='free'?obsPos(st.phi*rad):obsPos(Math.PI);
+ var h='<tr><th>별</th><th>거리(광년)</th><th>실제 연주시차 p(″)</th><th>'+(st.mode==='free'?'1월 대비 이동량 (현재 배율)':'1월↔7월 이동량 (현재 배율)')+'</th></tr>';
+ STARS.forEach(function(s){
+  var dv=sky(s,second).y-sky(s,jan).y;
+  h+='<tr data-i="'+s.i+'" class="'+(st.hl===s.i?'hl':'')+'"><td>'+s.ko+'</td><td class="mono">'+s.d+'</td><td class="mono">'+s.pArc.toFixed(4)+'</td><td class="mono">'+fmtAng(dv)+arrow(dv)+'</td></tr>';
+ });
+ $('tbl').innerHTML=h;
+}
+
+function fmtK(k){return Math.round(k).toLocaleString('ko-KR')}
+function renderUI(){
+ $('phiTxt').textContent=(Math.floor(st.phi/30)%12+1)+'월경 ('+Math.round(st.phi)+'°)';
+ $('phi').value=st.phi;
+ $('kTxt').textContent='×'+fmtK(st.K);
+ $('kk').value=Math.round(Math.log(st.K)/Math.log(KMAX)*1000);
+ $('kNote').innerHTML=st.K<=1.5?'실제 크기입니다. 별의 이동이 너무 작아서(1″보다 작음) 눈으로 볼 수 없어요.':
+  '지구 공전 궤도 반지름(1AU)을 <b>'+fmtK(st.K)+'배</b>로 키운 것과 같습니다. (관측 기선 반지름 약 '+B().toFixed(2)+'광년)';
+ $('flat').value=st.flat*100;$('flatTxt').textContent=Math.round(st.flat*100)+'%';
+ $('oDist').checked=st.showDist;$('oRing').checked=st.showRing;$('oLine').checked=st.showLine;$('oProj').checked=st.showProj;$('oTrail').checked=st.showTrail;$('oShape').checked=st.showShape;
+ $('mFree').classList.toggle('on',st.mode==='free');$('mCmp').classList.toggle('on',st.mode==='cmp');
+ $('freeBox').classList.toggle('hide',st.mode!=='free');$('cmpBox').classList.toggle('hide',st.mode!=='cmp');
+ [].forEach.call($('cmpBtns').children,function(b){b.classList.toggle('on',b.dataset.c===st.cmp)});
+ [].forEach.call($('steps').children,function(b){b.classList.toggle('on',+b.dataset.s===st.step)});
+ [].forEach.call($('views').children,function(b){b.classList.toggle('on',b.dataset.v===st.view)});
+ $('stage').className=st.view;
+ $('play').textContent=st.play?'⏸ 멈춤':'▶ 재생';
+ $('cObs').querySelector('h3').textContent='지구(관측자) 위치';
+}
+var QS={1:'북두칠성의 일곱 별은 지구에서 같은 거리에 있을까요?',
+ 2:'별들의 실제 거리는 제각각입니다. 그렇다면 별까지의 거리는 어떻게 알 수 있을까요?',
+ 3:'지구가 공전하며 관측 위치가 바뀌면 별의 위치는 어떻게 달라질까요? 가까운 별과 먼 별을 비교해 보세요.'};
+function render(){
+ if(st.view!=='sky')renderTop();
+ if(st.view!=='top')renderSky();
+ renderTable();renderUI();
+ applyHl();
+}
+function applyHl(){
+ document.querySelectorAll('[data-i]').forEach(function(e){e.classList.toggle('hl',st.hl!==null&&+e.dataset.i===st.hl)});
+}
+
+/* ---- 단계 프리셋 ---- */
+function setK(k){st.K=Math.max(1,Math.min(KMAX,k))}
+function setStep(n){
+ st.step=n;st.play=false;st.phi=0;st.mode='free';st.flat=0;
+ if(n===1){st.view='sky';st.showDist=false;st.showProj=false;st.showRing=false;setK(1)}
+ if(n===2){st.view='top';st.showDist=true;st.showProj=true;st.showRing=true;setK(1)}
+ if(n===3){st.view='both';st.showDist=true;st.showProj=true;st.showRing=true;st.showTrail=true;setK(150000)}
+ $('q').textContent=QS[n];
+ render();
+}
+
+/* ---- 이벤트 ---- */
+$('steps').onclick=function(e){var b=e.target.closest('button');if(b)setStep(+b.dataset.s)};
+$('views').onclick=function(e){var b=e.target.closest('button');if(b){st.view=b.dataset.v;render()}};
+$('mFree').onclick=function(){st.mode='free';render()};
+$('mCmp').onclick=function(){st.mode='cmp';st.play=false;render()};
+$('cmpBtns').onclick=function(e){var b=e.target.closest('button');if(b){st.cmp=b.dataset.c;render()}};
+$('phi').oninput=function(){st.phi=+this.value;render()};
+$('play').onclick=function(){st.play=!st.play;last=0;render()};
+$('rst').onclick=function(){st.phi=0;st.play=false;render()};
+$('spd').onchange=function(){st.speed=+this.value};
+$('kk').oninput=function(){setK(Math.pow(10,this.value/1000*Math.log10(KMAX)));render()};
+$('kPre').onclick=function(e){var b=e.target.closest('button');if(b){setK(+b.dataset.k);render()}};
+[['oDist','showDist'],['oRing','showRing'],['oLine','showLine'],['oProj','showProj'],['oTrail','showTrail'],['oShape','showShape']].forEach(function(p){
+ $(p[0]).onchange=function(){st[p[1]]=this.checked;render()}});
+$('flat').oninput=function(){st.flat=this.value/100;render()};
+var tw=null;
+function tween(to){cancelAnimationFrame(tw);var from=st.flat,t0=performance.now();
+ (function f(t){var u=Math.min(1,(t-t0)/1200),e=u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2;st.flat=from+(to-from)*e;render();if(u<1)tw=requestAnimationFrame(f)})(t0)}
+$('fl0').onclick=function(){tween(0)};$('fl1').onclick=function(){tween(1)};
+/* 호버 강조 */
+document.addEventListener('mouseover',function(e){var t=e.target.closest&&e.target.closest('[data-i]');var v=t?+t.dataset.i:null;if(v!==st.hl){st.hl=v;applyHl()}});
+document.addEventListener('keydown',function(e){
+ if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+ if(e.code==='Space'){e.preventDefault();$('play').click()}
+ else if(e.key==='ArrowRight'){st.phi=(st.phi+5)%360;render()}
+ else if(e.key==='ArrowLeft'){st.phi=(st.phi+355)%360;render()}
+ else if(e.key>='1'&&e.key<='3')setStep(+e.key);
+});
+/* 재생 루프 */
+var last=0;
+function loop(t){
+ if(st.play&&st.mode==='free'){if(last){st.phi=(st.phi+st.speed*(t-last)/1000)%360;render()}last=t}else last=0;
+ requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+window.__st=st;window.__setStep=setStep;
+setStep(3);
+})();
+</script>
+</body>
+</html>
